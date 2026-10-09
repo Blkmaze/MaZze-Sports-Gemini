@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Grid3X3, 
   CreditCard, 
@@ -13,48 +13,78 @@ import {
   Trophy,
   Info
 } from 'lucide-react';
-import { SQUARES_GAMES, generateInitialSquares } from '../data/mockData';
-import { SquaresBoardState } from '../types';
+import { SquaresBoardState, GameItem } from '../types';
+import { generateSquaresForESPNGame } from '../services/espnService';
 import { FocusableItem } from './common/FocusableItem';
 import { useToast } from '../context/ToastContext';
 
 interface SquaresScreenProps {
   initialGameId?: string;
+  games?: GameItem[];
 }
 
 export const SquaresScreen: React.FC<SquaresScreenProps> = ({
   initialGameId,
+  games = [],
 }) => {
   const { showToast } = useToast();
 
+  // Pick top 10 real games from ESPN
+  const pickerGames = useMemo(() => {
+    return games.slice(0, 10);
+  }, [games]);
+
   // Active game selection
-  const [selectedGameId, setSelectedGameId] = useState<string>(
-    initialGameId || SQUARES_GAMES[0].id
-  );
-
-  // Price tier per square ($5, $10, $20)
-  const currentGameMeta = useMemo(() => {
-    return SQUARES_GAMES.find((g) => g.id === selectedGameId) || SQUARES_GAMES[0];
-  }, [selectedGameId]);
-
-  const [pricePerSquare, setPricePerSquare] = useState<number>(currentGameMeta.defaultPrice);
-
-  // Board state storage per game
-  const [boards, setBoards] = useState<Record<string, SquaresBoardState>>(() => {
-    const initial: Record<string, SquaresBoardState> = {};
-    SQUARES_GAMES.forEach((g) => {
-      initial[g.id] = generateInitialSquares(g.id);
-    });
-    return initial;
+  const [selectedGameId, setSelectedGameId] = useState<string>(() => {
+    return initialGameId || (pickerGames[0]?.id ?? 'default-game');
   });
 
-  // Modal state for netlify checkout notice
-  const [checkoutModalOpen, setCheckoutModalOpen] = useState<{
-    open: boolean;
-    provider: string;
-  }>({ open: false, provider: '' });
+  // When initialGameId changes from outside navigation
+  useEffect(() => {
+    if (initialGameId) {
+      setSelectedGameId(initialGameId);
+    }
+  }, [initialGameId]);
 
-  const currentBoard = boards[selectedGameId] || generateInitialSquares(selectedGameId);
+  // Active game object
+  const activeGame = useMemo(() => {
+    return (
+      pickerGames.find((g) => g.id === selectedGameId) ||
+      games.find((g) => g.id === selectedGameId) ||
+      pickerGames[0] || {
+        id: 'default-game',
+        sport: 'Football',
+        league: 'NFL',
+        awayTeam: { name: 'San Francisco 49ers', shortName: 'SF', logoColor: '#AA0000', score: 21 },
+        homeTeam: { name: 'Kansas City Chiefs', shortName: 'KC', logoColor: '#E31837', score: 24 },
+        gameState: 'in',
+        shortDetail: '3rd - 8:42',
+        startTime: new Date().toISOString(),
+        quarterOrPeriod: '3rd Qtr',
+        clock: '8:42',
+        isLive: true,
+        headline: 'Super Bowl LIX Rematch',
+        channel: 'MaZze RedZone',
+        excitementScore: 98,
+        venue: 'Caesars Superdome',
+        label: 'SF @ KC',
+      }
+    );
+  }, [selectedGameId, pickerGames, games]);
+
+  // Price tier per square ($5, $10, $20)
+  const [pricePerSquare, setPricePerSquare] = useState<number>(10);
+
+  // Board state storage per game (preserved in-place across refreshes)
+  const [boards, setBoards] = useState<Record<string, SquaresBoardState>>({});
+
+  // Ensure active game has a board initialized
+  const currentBoard = useMemo(() => {
+    if (boards[activeGame.id]) {
+      return boards[activeGame.id];
+    }
+    return generateSquaresForESPNGame(activeGame);
+  }, [boards, activeGame]);
 
   // Calculate statistics
   const { userSquaresCount, totalClaimed, isSold75 } = useMemo(() => {
@@ -81,15 +111,13 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
     }
 
     setBoards((prev) => {
-      const updatedBoard = { ...prev[selectedGameId] };
-      const updatedSquares = { ...updatedBoard.squares };
+      const baseBoard = prev[activeGame.id] || generateSquaresForESPNGame(activeGame);
+      const updatedSquares = { ...baseBoard.squares };
 
       if (cell?.isUser) {
-        // Remove user's pick
         updatedSquares[key] = { taken: false };
         showToast('Square Removed', `Deselected Row ${r}, Col ${c}`, 'info', 2000);
       } else {
-        // Select square for user
         updatedSquares[key] = {
           taken: true,
           owner: 'YOU',
@@ -98,15 +126,14 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
         showToast('Square Picked!', `Selected Row ${r}, Col ${c} for YOU`, 'success', 2000);
       }
 
-      // Check if newly reaching 75%
       const newTotal = Object.values(updatedSquares).filter((s) => s.taken).length;
       const newly75 = newTotal >= 75;
 
       return {
         ...prev,
-        [selectedGameId]: {
-          ...updatedBoard,
-          numbersDrawn: newly75 || updatedBoard.numbersDrawn,
+        [activeGame.id]: {
+          ...baseBoard,
+          numbersDrawn: newly75 || baseBoard.numbersDrawn,
           squares: updatedSquares,
         },
       };
@@ -121,8 +148,8 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
     }
 
     setBoards((prev) => {
-      const updatedBoard = { ...prev[selectedGameId] };
-      const updatedSquares = { ...updatedBoard.squares };
+      const baseBoard = prev[activeGame.id] || generateSquaresForESPNGame(activeGame);
+      const updatedSquares = { ...baseBoard.squares };
 
       Object.keys(updatedSquares).forEach((key) => {
         if (updatedSquares[key].isUser) {
@@ -132,8 +159,8 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
 
       return {
         ...prev,
-        [selectedGameId]: {
-          ...updatedBoard,
+        [activeGame.id]: {
+          ...baseBoard,
           squares: updatedSquares,
         },
       };
@@ -142,7 +169,12 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
     showToast('Picks Cleared', 'All your selected squares have been cleared.', 'info');
   };
 
-  // Payment button clicked: shows netlify checkout message
+  // Payment checkout notice
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState<{
+    open: boolean;
+    provider: string;
+  }>({ open: false, provider: '' });
+
   const handlePaymentClick = (provider: string) => {
     if (userSquaresCount === 0) {
       showToast('Select Squares First', 'Please pick at least one square before proceeding to checkout.', 'warning');
@@ -161,12 +193,12 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
   // Toggle simulate 75% draw
   const handleToggleDrawNumbers = () => {
     setBoards((prev) => {
-      const updatedBoard = { ...prev[selectedGameId] };
-      const newDrawn = !updatedBoard.numbersDrawn;
+      const baseBoard = prev[activeGame.id] || generateSquaresForESPNGame(activeGame);
+      const newDrawn = !baseBoard.numbersDrawn;
       return {
         ...prev,
-        [selectedGameId]: {
-          ...updatedBoard,
+        [activeGame.id]: {
+          ...baseBoard,
           numbersDrawn: newDrawn,
         },
       };
@@ -180,14 +212,14 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
   };
 
   return (
-    <div className="flex-1 h-full flex flex-col p-7 overflow-hidden select-none bg-[#0d0d10]">
-      {/* Game Picker Across Top (4 Games) */}
-      <div className="mb-4 shrink-0">
+    <div className="flex-1 h-full flex flex-col p-6 overflow-hidden select-none bg-[#0d0d10]">
+      {/* Top 10 Game Picker Across Top (labeled AWAY@HOME) */}
+      <div className="mb-3 shrink-0">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase font-extrabold tracking-widest text-[#ff7a1a] flex items-center gap-1.5">
               <Grid3X3 className="w-3.5 h-3.5" />
-              10x10 MAZZE SQUARES POOL
+              10x10 MAZZE SQUARES POOL (TOP 10 ESPN GAMES)
             </span>
           </div>
 
@@ -219,26 +251,28 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
           </div>
         </div>
 
-        {/* 4 Games Picker Row */}
-        <div className="grid grid-cols-4 gap-3">
-          {SQUARES_GAMES.map((game, index) => {
-            const isSelected = game.id === selectedGameId;
+        {/* 10 Games Picker Row (2 rows of 5 for optimal 1080p layout and visibility) */}
+        <div className="grid grid-cols-5 gap-2">
+          {pickerGames.map((game, index) => {
+            const isSelected = game.id === activeGame.id;
             const prevId = index === 0 ? 'rail-squares' : `game-pick-${index - 1}`;
-            const nextId = index === SQUARES_GAMES.length - 1 ? 'squares-price-5' : `game-pick-${index + 1}`;
+            const nextId = index === pickerGames.length - 1 ? 'squares-price-5' : `game-pick-${index + 1}`;
+            const downId = index < 5 && pickerGames.length > 5 ? `game-pick-${index + 5}` : 'sq-cell-0-0';
+            const upId = index >= 5 ? `game-pick-${index - 5}` : undefined;
 
             return (
               <FocusableItem
-                key={game.id}
+                key={`game-pick-${index}`}
                 id={`game-pick-${index}`}
                 dataNavLeft={prevId}
                 dataNavRight={nextId}
-                dataNavDown="sq-cell-0-0"
+                dataNavUp={upId}
+                dataNavDown={downId}
                 onSelect={() => {
                   setSelectedGameId(game.id);
-                  setPricePerSquare(game.defaultPrice);
-                  showToast('Game Selected', `Loaded 10x10 Squares for ${game.shortName}`, 'info', 2000);
+                  showToast('Game Selected', `Loaded 10x10 Squares for ${game.label}`, 'info', 2000);
                 }}
-                className={`p-2.5 rounded-xl border-2 transition-all flex items-center justify-between ${
+                className={`px-3 py-2 rounded-xl border-2 transition-all flex items-center justify-between ${
                   isSelected
                     ? 'bg-zinc-800 border-[#ff7a1a] shadow-[0_0_15px_rgba(255,122,26,0.4)]'
                     : 'bg-[#14141d] border-zinc-800/80 hover:bg-zinc-800/50'
@@ -247,17 +281,21 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
                 {(isFocused) => (
                   <div className="flex items-center justify-between w-full">
                     <div>
-                      <div className="text-xs font-extrabold text-white truncate max-w-[170px]">
-                        {game.shortName}
+                      {/* Labeled AWAY@HOME prominently as requested */}
+                      <div className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                        <span className="font-mono-num text-sm text-[#ff7a1a]">{game.label}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300">
+                          {game.league}
+                        </span>
                       </div>
-                      <div className="text-[10px] text-zinc-400 mt-0.5">
-                        {game.date}
+                      <div className="text-[10px] text-zinc-400 mt-0.5 truncate max-w-[150px]">
+                        {game.shortDetail}
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="px-2 py-0.5 rounded bg-[#ff7a1a]/20 text-[#ff7a1a] text-[10px] font-mono-num font-bold">
-                        ${game.defaultPrice}/sq
-                      </span>
+                      <span className={`w-2 h-2 rounded-full inline-block ${
+                        game.gameState === 'in' ? 'bg-[#a3e635] animate-pulse' : 'bg-zinc-600'
+                      }`} />
                     </div>
                   </div>
                 )}
@@ -268,13 +306,13 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
       </div>
 
       {/* Main Split: 10x10 Grid (Left 70%) vs Side Panel (Right 30%) */}
-      <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-12 gap-5 flex-1 min-h-0">
         {/* 10x10 Squares Grid Container (Col 8) */}
-        <div className="col-span-8 flex flex-col h-full bg-[#121219] rounded-2xl border border-zinc-800/80 p-4 justify-between">
+        <div className="col-span-8 flex flex-col h-full bg-[#121219] rounded-2xl border border-zinc-800/80 p-3.5 justify-between">
           {/* Header indicator: Home Team across top */}
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-widest text-[#a3e635]">
-              COLUMN TEAM: {currentBoard.homeTeam}
+          <div className="flex items-center justify-center gap-2 mb-1.5">
+            <span className="text-xs font-extrabold uppercase tracking-widest text-[#a3e635]">
+              COLUMN TEAM (HOME): {currentBoard.homeTeam}
             </span>
             <span className="text-zinc-600 text-xs">•</span>
             <span className="text-[11px] font-mono text-zinc-400">
@@ -284,22 +322,22 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
 
           <div className="flex flex-1 min-h-0 items-center justify-center">
             {/* Left label for Away team */}
-            <div className="writing-mode-vertical rotate-180 text-center mr-2 text-[10px] font-extrabold uppercase tracking-widest text-[#ff7a1a] whitespace-nowrap">
-              ROW TEAM: {currentBoard.awayTeam}
+            <div className="writing-mode-vertical rotate-180 text-center mr-2 text-[11px] font-extrabold uppercase tracking-widest text-[#ff7a1a] whitespace-nowrap">
+              ROW TEAM (AWAY): {currentBoard.awayTeam}
             </div>
 
             {/* 10x10 Table */}
-            <div className="flex flex-col flex-1 max-w-[560px] max-h-[460px] h-full">
+            <div className="flex flex-col flex-1 max-w-[550px] max-h-[440px] h-full">
               {/* Column numbers header (Home Team 0-9 or ?) */}
               <div className="grid grid-cols-11 gap-1 mb-1 shrink-0">
                 {/* Top-left corner */}
-                <div className="h-8 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500">
+                <div className="h-7 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-[9px] font-bold text-zinc-500">
                   AWAY \ HOME
                 </div>
                 {Array.from({ length: 10 }).map((_, c) => (
                   <div
                     key={`col-hdr-${c}`}
-                    className={`h-8 rounded border flex items-center justify-center font-mono-num text-xs font-bold transition-all ${
+                    className={`h-7 rounded border flex items-center justify-center font-mono-num text-xs font-bold transition-all ${
                       currentBoard.numbersDrawn
                         ? 'bg-zinc-800 border-[#a3e635]/60 text-[#a3e635]'
                         : 'bg-zinc-900/90 border-zinc-800 text-zinc-500'
@@ -357,7 +395,7 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
                           {(isFocused) => (
                             <span className="text-[10px] tracking-tight font-mono-num leading-none">
                               {isUser ? (
-                                <span className="font-extrabold text-[11px] text-white bg-black/40 px-1 py-0.2 rounded">
+                                <span className="font-extrabold text-[10px] text-white bg-black/40 px-1 py-0.2 rounded">
                                   YOU
                                 </span>
                               ) : isTaken ? (
@@ -377,7 +415,7 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
           </div>
 
           {/* Grid Footer Hint */}
-          <div className="flex items-center justify-between text-xs text-zinc-400 pt-2 border-t border-zinc-800">
+          <div className="flex items-center justify-between text-xs text-zinc-400 pt-1.5 border-t border-zinc-800">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-[#ff7a1a]" />
@@ -399,24 +437,25 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
         </div>
 
         {/* Side Panel (Col 4) */}
-        <div className="col-span-4 flex flex-col h-full bg-[#14141e] rounded-2xl border border-zinc-800 p-5 justify-between">
+        <div className="col-span-4 flex flex-col h-full bg-[#14141e] rounded-2xl border border-zinc-800 p-4 justify-between">
           <div>
             {/* Game Name & Header */}
-            <div className="border-b border-zinc-800 pb-3 mb-4">
-              <div className="text-xs font-bold text-[#ff7a1a] uppercase tracking-wider">
-                Selected Pool
+            <div className="border-b border-zinc-800 pb-2.5 mb-3">
+              <div className="text-xs font-bold text-[#ff7a1a] uppercase tracking-wider flex items-center justify-between">
+                <span>Selected Board</span>
+                <span className="font-mono text-xs text-[#a3e635]">{activeGame.league}</span>
               </div>
-              <h3 className="text-xl font-extrabold text-white mt-0.5">
-                {currentGameMeta.title}
+              <h3 className="text-lg font-extrabold text-white mt-0.5">
+                {activeGame.awayTeam.name} @ {activeGame.homeTeam.name}
               </h3>
-              <p className="text-xs text-zinc-400 mt-1">
-                {currentGameMeta.date}
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {activeGame.shortDetail} • {activeGame.venue}
               </p>
             </div>
 
             {/* Price Per Square Selector ($5 / $10 / $20) */}
-            <div className="mb-4">
-              <div className="text-xs font-bold text-zinc-300 uppercase tracking-wider mb-2">
+            <div className="mb-3">
+              <div className="text-xs font-bold text-zinc-300 uppercase tracking-wider mb-1.5">
                 Price Per Square
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -436,7 +475,7 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
                         setPricePerSquare(tier);
                         showToast('Price Tier Selected', `$${tier} per square applied`, 'info', 2000);
                       }}
-                      className={`py-2 rounded-xl text-center font-bold text-sm transition-all ${
+                      className={`py-1.5 rounded-xl text-center font-bold text-sm transition-all ${
                         isSelected
                           ? 'bg-[#ff7a1a] text-white shadow-md'
                           : 'bg-zinc-800 text-zinc-300 hover:text-white'
@@ -450,7 +489,7 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
             </div>
 
             {/* Selected Count & Total Dollars */}
-            <div className="p-4 rounded-xl bg-zinc-900/90 border border-zinc-800 mb-4">
+            <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 mb-3">
               <div className="flex items-center justify-between py-1 border-b border-zinc-800 text-xs">
                 <span className="text-zinc-400">Selected Squares</span>
                 <span className="font-bold text-white font-mono-num text-sm">
@@ -463,7 +502,7 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
                   ${pricePerSquare}
                 </span>
               </div>
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center justify-between pt-1.5">
                 <span className="text-sm font-extrabold text-zinc-200 uppercase tracking-wide">
                   Total Dollars
                 </span>
@@ -473,17 +512,17 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
               </div>
             </div>
 
-            {/* Prize pool summary */}
-            <div className="text-[11px] text-zinc-400 bg-zinc-900/50 p-2.5 rounded-lg border border-zinc-800/80 mb-4 flex items-center justify-between">
-              <span>Q1: {currentGameMeta.prizes.q1}</span>
-              <span>Half: {currentGameMeta.prizes.half}</span>
-              <span>Q3: {currentGameMeta.prizes.q3}</span>
-              <span className="font-bold text-[#ff7a1a]">Final: {currentGameMeta.prizes.final}</span>
+            {/* Prize pool estimate summary */}
+            <div className="text-[11px] text-zinc-400 bg-zinc-900/50 p-2 rounded-lg border border-zinc-800/80 mb-3 flex items-center justify-between font-mono-num">
+              <span>Q1: ${Math.round(totalCost * 2.5) || 250}</span>
+              <span>Half: ${Math.round(totalCost * 5) || 500}</span>
+              <span>Q3: ${Math.round(totalCost * 2.5) || 250}</span>
+              <span className="font-bold text-[#ff7a1a]">Final: ${Math.round(totalCost * 10) || 1000}</span>
             </div>
           </div>
 
           {/* Payment Buttons & Refund Notice */}
-          <div className="flex flex-col space-y-2.5 pt-2 border-t border-zinc-800">
+          <div className="flex flex-col space-y-2 pt-1 border-t border-zinc-800">
             {/* Pay with Cash App */}
             <FocusableItem
               id="pay-cashapp"
@@ -578,7 +617,6 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
               Payments are handled securely on the companion web portal:
             </p>
 
-            {/* Netlify URL box */}
             <div className="my-4 p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-sm text-[#a3e635] font-bold break-all flex items-center justify-center gap-2">
               <ExternalLink className="w-4 h-4 text-[#ff7a1a]" />
               <span>parlaypro-squares.netlify.app</span>
@@ -587,6 +625,7 @@ export const SquaresScreen: React.FC<SquaresScreenProps> = ({
             <div className="text-xs text-zinc-400 bg-zinc-900/80 p-3 rounded-lg border border-zinc-800 mb-6 text-left space-y-1">
               <div>• Provider selected: <span className="text-white font-bold">{checkoutModalOpen.provider}</span></div>
               <div>• Squares to reserve: <span className="text-white font-bold">{userSquaresCount}</span> (${totalCost})</div>
+              <div>• Board: <span className="text-white font-bold">{activeGame.label}</span></div>
               <div>• No payments are processed directly within the TV applet.</div>
               <div>• Board Refund Policy: 100% refundable if board does not fill.</div>
             </div>

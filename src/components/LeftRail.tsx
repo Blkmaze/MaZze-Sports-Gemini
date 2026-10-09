@@ -18,21 +18,25 @@ interface LeftRailProps {
   currentScreen: NavScreen;
   onNavigate: (screen: NavScreen, sportFilter?: SportCategory) => void;
   selectedSportFilter?: SportCategory | null;
+  liveCount?: number;
+  sportCounts?: Record<string, number>;
 }
 
 export const LeftRail: React.FC<LeftRailProps> = ({
   currentScreen,
   onNavigate,
   selectedSportFilter,
+  liveCount = 0,
+  sportCounts = {},
 }) => {
   const [mySportsOpen, setMySportsOpen] = useState(true);
 
-  const sportsList: { name: SportCategory; icon: string; count: number }[] = [
-    { name: 'Football', icon: '🏈', count: 2 },
-    { name: 'Basketball', icon: '🏀', count: 1 },
-    { name: 'Soccer', icon: '⚽', count: 1 },
-    { name: 'Hockey', icon: '🏒', count: 1 },
-    { name: 'Fights', icon: '🥊', count: 1 },
+  const sportsList: { name: SportCategory; icon: string }[] = [
+    { name: 'Football', icon: '🏈' },
+    { name: 'Basketball', icon: '🏀' },
+    { name: 'Soccer', icon: '⚽' },
+    { name: 'Hockey', icon: '🏒' },
+    { name: 'Baseball', icon: '⚾' },
   ];
 
   return (
@@ -220,7 +224,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                           <span className="font-semibold">{sport.name}</span>
                         </span>
                         <span className="text-[11px] font-mono-num text-zinc-500">
-                          {sport.count} live
+                          {sportCounts[sport.name] || 0} games
                         </span>
                       </div>
                     )}

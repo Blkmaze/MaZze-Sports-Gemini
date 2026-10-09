@@ -10,7 +10,10 @@ import {
   Clock,
   Sparkles,
   ShieldCheck,
-  Radio
+  Radio,
+  WifiOff,
+  RefreshCw,
+  Calendar
 } from 'lucide-react';
 import { FocusableItem } from './common/FocusableItem';
 import { GameItem, UserTeam, SportCategory } from '../types';
@@ -24,6 +27,8 @@ interface HomeScreenProps {
   onOpenPlayer: (game: GameItem) => void;
   onGoToSquares: (gameId?: string) => void;
   sportFilter?: SportCategory | null;
+  updatedTime?: string;
+  isOffline?: boolean;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -35,10 +40,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenPlayer,
   onGoToSquares,
   sportFilter,
+  updatedTime,
+  isOffline = false,
 }) => {
   const filteredGames = sportFilter
     ? liveGames.filter((g) => g.sport === sportFilter)
     : liveGames;
+
+  const liveCount = liveGames.filter((g) => g.gameState === 'in').length;
 
   return (
     <div className="flex-1 h-full flex flex-col p-8 overflow-hidden select-none bg-[#0d0d10]">
@@ -46,15 +55,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <div className="flex items-center justify-between mb-5 shrink-0">
         <div className="flex items-center gap-4">
           <div>
-            <span className="text-xs uppercase font-extrabold tracking-widest text-[#ff7a1a] flex items-center gap-1.5">
-              <Flame className="w-3.5 h-3.5" />
-              {sportFilter ? `${sportFilter.toUpperCase()} HUB` : 'MAZZE ARENA PRIMETIME'}
-            </span>
+            <div className="flex items-center gap-3 mb-0.5">
+              <span className="text-xs uppercase font-extrabold tracking-widest text-[#ff7a1a] flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5" />
+                {sportFilter ? `${sportFilter.toUpperCase()} HUB` : 'MAZZE ARENA LIVE FEED'}
+              </span>
+              
+              {/* Real-time Updated Stamp & Offline Notice */}
+              {isOffline ? (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950/80 text-amber-300 border border-amber-700/80 flex items-center gap-1.5">
+                  <WifiOff className="w-3 h-3 text-amber-400" />
+                  <span>Offline • Cached ({updatedTime || 'saved'})</span>
+                </span>
+              ) : updatedTime ? (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-zinc-900 text-zinc-300 border border-zinc-700/60 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#a3e635] animate-pulse" />
+                  <span>Updated {updatedTime}</span>
+                </span>
+              ) : null}
+            </div>
+
             <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
               Live Sports Central
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#a3e635]/20 text-[#a3e635] border border-[#a3e635]/40 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-[#a3e635] animate-ping" />
-                5 LIVE NOW
+                {liveCount > 0 ? `${liveCount} LIVE NOW` : `${liveGames.length} GAMES ON DECK`}
               </span>
             </h1>
           </div>
@@ -95,7 +120,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </div>
 
-      {/* Main Grid: Live Preview (Left) + Your Teams (Right) */}
+      {/* Main Grid: Live Preview (Left) + Up Next (Right) */}
       <div className="grid grid-cols-12 gap-6 flex-1 min-h-0 mb-6">
         {/* Large Live Preview Window (Col 8) */}
         <div className="col-span-8 flex flex-col h-full">
@@ -127,21 +152,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 {/* Top Overlay: Live Tag + Channel + Resolution */}
                 <div className="relative z-10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="px-3 py-1 rounded-md bg-[#ff7a1a] text-white font-extrabold text-xs tracking-wider flex items-center gap-2 shadow-[0_0_15px_rgba(255,122,26,0.8)]">
-                      <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                      LIVE BROADCAST
+                    <div className={`px-3 py-1 rounded-md text-white font-extrabold text-xs tracking-wider flex items-center gap-2 shadow-lg ${
+                      featuredGame.gameState === 'in'
+                        ? 'bg-[#ff7a1a] shadow-[0_0_15px_rgba(255,122,26,0.8)]'
+                        : featuredGame.gameState === 'post'
+                        ? 'bg-zinc-700'
+                        : 'bg-emerald-600'
+                    }`}>
+                      {featuredGame.gameState === 'in' && (
+                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                      )}
+                      <span>
+                        {featuredGame.gameState === 'in' ? 'LIVE NOW' : featuredGame.gameState === 'post' ? 'FINAL' : 'UPCOMING'}
+                      </span>
                     </div>
                     <div className="px-2.5 py-1 rounded-md bg-zinc-900/80 border border-zinc-700/80 text-xs font-mono text-zinc-300">
                       {featuredGame.channel}
                     </div>
                     <div className="px-2 py-1 rounded-md bg-[#a3e635]/20 text-[#a3e635] text-xs font-mono font-bold">
-                      4K HDR 60FPS
+                      {featuredGame.league} • 60 FPS
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-zinc-700 text-xs text-zinc-300">
                     <Clock className="w-3.5 h-3.5 text-[#ff7a1a]" />
-                    <span className="font-mono-num font-bold">{featuredGame.quarterOrPeriod} • {featuredGame.clock}</span>
+                    <span className="font-mono-num font-bold">{featuredGame.shortDetail}</span>
                   </div>
                 </div>
 
@@ -151,12 +186,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     {featuredGame.headline}
                   </div>
                   <h2 className="text-4xl font-extrabold text-white tracking-tight leading-tight">
-                    {featuredGame.awayTeam.name} <span className="text-zinc-500 font-light">vs</span> {featuredGame.homeTeam.name}
+                    {featuredGame.awayTeam.name} <span className="text-zinc-500 font-light">@</span> {featuredGame.homeTeam.name}
                   </h2>
                   <p className="text-sm text-zinc-400 mt-1 flex items-center gap-2">
                     <span>{featuredGame.venue}</span>
                     <span>•</span>
-                    <span className="text-[#ff7a1a] font-semibold">Ball on SF 32 • 3rd & 4</span>
+                    <span className="text-[#ff7a1a] font-semibold">{featuredGame.label}</span>
                   </p>
                 </div>
 
@@ -177,7 +212,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                           {featuredGame.awayTeam.shortName}
                         </div>
                         <div className="text-[11px] text-zinc-400 mt-0.5">
-                          {featuredGame.awayTeam.record}
+                          {featuredGame.awayTeam.record || 'Away'}
                         </div>
                       </div>
                       <div className="font-teko text-3xl font-bold text-white px-2">
@@ -191,7 +226,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       </div>
                     </div>
 
-                    <div className="text-zinc-600 font-bold text-sm">vs</div>
+                    <div className="text-zinc-600 font-bold text-sm">@</div>
 
                     {/* Home Team */}
                     <div className="flex items-center gap-3">
@@ -209,7 +244,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                           {featuredGame.homeTeam.shortName}
                         </div>
                         <div className="text-[11px] text-zinc-400 mt-0.5">
-                          {featuredGame.homeTeam.record}
+                          {featuredGame.homeTeam.record || 'Home'}
                         </div>
                       </div>
                       <div
@@ -256,15 +291,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </FocusableItem>
         </div>
 
-        {/* Your Teams Column (Col 4) */}
+        {/* Up Next Column (Col 4) */}
         <div className="col-span-4 flex flex-col h-full bg-[#13131a] rounded-2xl border border-zinc-800/80 p-5">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-800">
             <div className="flex items-center gap-2">
-              <span className="text-xl">⭐</span>
-              <h3 className="font-extrabold text-lg text-white">Your Teams</h3>
+              <Calendar className="w-5 h-5 text-[#ff7a1a]" />
+              <h3 className="font-extrabold text-lg text-white">Up Next & Live</h3>
             </div>
             <span className="text-xs font-mono text-zinc-400">
-              {yourTeams.length} Followed
+              ESPN Scoreboard
             </span>
           </div>
 
@@ -281,7 +316,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   dataNavUp={prevTeamId}
                   dataNavDown={nextTeamId}
                   onSelect={() => {
-                    // Match corresponding game if live
                     const matchGame = liveGames.find((g) => g.homeTeam.name.includes(team.teamName) || g.awayTeam.name.includes(team.teamName));
                     if (matchGame) onOpenPlayer(matchGame);
                   }}
@@ -308,13 +342,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                       <div className="text-right shrink-0">
                         <div className="flex items-center gap-1.5 justify-end">
-                          <span className="w-2 h-2 rounded-full bg-[#a3e635] animate-pulse" />
-                          <span className="text-xs font-bold text-[#a3e635]">
+                          <span className={`w-2 h-2 rounded-full ${team.status === 'LIVE' ? 'bg-[#a3e635] animate-pulse' : 'bg-zinc-500'}`} />
+                          <span className={`text-xs font-bold ${team.status === 'LIVE' ? 'text-[#a3e635]' : 'text-zinc-300'}`}>
                             {team.status}
                           </span>
                         </div>
                         <div className="text-[11px] font-mono-num text-zinc-400 mt-0.5">
-                          {spoilerFree ? 'Game in Progress' : team.statusDetails}
+                          {spoilerFree && team.status === 'LIVE' ? 'Game in Progress' : team.statusDetails}
                         </div>
                       </div>
                     </div>
@@ -344,13 +378,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         <div className="grid grid-cols-5 gap-4">
-          {filteredGames.map((game, index) => {
+          {filteredGames.slice(0, 5).map((game, index) => {
             const prevCardId = index === 0 ? 'rail-home' : `home-score-${index - 1}`;
-            const nextCardId = index === filteredGames.length - 1 ? undefined : `home-score-${index + 1}`;
+            const nextCardId = index === Math.min(filteredGames.length, 5) - 1 ? undefined : `home-score-${index + 1}`;
 
             return (
               <FocusableItem
-                key={game.id}
+                key={`score-card-${index}`}
                 id={`home-score-${index}`}
                 dataNavLeft={prevCardId}
                 dataNavRight={nextCardId}
@@ -365,8 +399,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       <span className="font-bold text-[11px] uppercase tracking-wider text-[#ff7a1a]">
                         {game.league}
                       </span>
-                      <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono font-semibold text-zinc-300">
-                        {game.clock}
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${
+                        game.gameState === 'in' ? 'bg-[#a3e635]/20 text-[#a3e635]' : 'bg-zinc-800 text-zinc-300'
+                      }`}>
+                        {game.shortDetail}
                       </span>
                     </div>
 
@@ -410,8 +446,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                           Thrilling ({game.excitementScore}%)
                         </span>
                       ) : (
-                        <span className="text-zinc-400 font-mono">
-                          {game.quarterOrPeriod}
+                        <span className="text-zinc-400 font-mono text-[10px] truncate max-w-[100px]">
+                          {game.venue}
                         </span>
                       )}
                       <span className="text-[#ff7a1a] font-bold text-[10px] group-hover:underline">
@@ -428,3 +464,4 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     </div>
   );
 };
+

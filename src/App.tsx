@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { SpatialNavProvider, useSpatialNav } from './context/SpatialNavContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { LeftRail } from './components/LeftRail';
@@ -18,10 +18,10 @@ import {
   FEATURED_GAME, 
   LIVE_GAMES, 
   YOUR_TEAMS, 
-  CHANNELS_DATA, 
-  SQUARES_GAMES 
+  CHANNELS_DATA 
 } from './data/mockData';
-import { NavScreen, SportCategory, GameItem, ChannelItem } from './types';
+import { NavScreen, SportCategory, GameItem, ChannelItem, UserTeam } from './types';
+import { fetchAllESPNScoreboards, deriveUpNextTeams } from './services/espnService';
 import { Maximize, Minimize } from 'lucide-react';
 
 const TVAppContent: React.FC = () => {
@@ -32,7 +32,13 @@ const TVAppContent: React.FC = () => {
   const [selectedSportFilter, setSelectedSportFilter] = useState<SportCategory | null>(null);
   const [activePlayerGame, setActivePlayerGame] = useState<GameItem | null>(null);
   const [spoilerFree, setSpoilerFree] = useState<boolean>(false);
-  const [squaresSelectedGameId, setSquaresSelectedGameId] = useState<string>(SQUARES_GAMES[0].id);
+  const [squaresSelectedGameId, setSquaresSelectedGameId] = useState<string>('');
+
+  // Real-time ESPN Scoreboard Data State
+  const [games, setGames] = useState<GameItem[]>(LIVE_GAMES);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState<string>('');
+  const [isOffline, setIsOffline] = useState<boolean>(false);
+  const isFirstFetchRef = useRef<boolean>(true);
 
   // Viewport 1920x1080 auto-scaling for TV display fidelity
   const [scale, setScale] = useState<number>(1);
@@ -55,6 +61,68 @@ const TVAppContent: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Format current time as hh:mm:ss
+  const formatCurrentTimestamp = () => {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  };
+
+  // Real-time ESPN Fetcher: Runs immediately and every 20 seconds
+  const fetchLiveScoreboardData = useCallback(async () => {
+    try {
+      const result = await fetchAllESPNScoreboards();
+      if (result.games && result.games.length > 0) {
+        // Update in place without losing focus or resetting navigation
+        setGames(result.games);
+        setLastUpdatedTime(formatCurrentTimestamp());
+        setIsOffline(false);
+        if (isFirstFetchRef.current) {
+          isFirstFetchRef.current = false;
+        }
+      } else {
+        // If fetch returns empty or fails, keep the last data and mark offline
+        setIsOffline(true);
+        if (!lastUpdatedTime) {
+          setLastUpdatedTime(formatCurrentTimestamp());
+        }
+      }
+    } catch (err) {
+      console.error('ESPN fetch failed:', err);
+      // Keep last data, show offline note
+      setIsOffline(true);
+    }
+  }, [lastUpdatedTime]);
+
+  // Initial load and 20s interval timer
+  useEffect(() => {
+    fetchLiveScoreboardData();
+    const interval = setInterval(fetchLiveScoreboardData, 20000);
+    return () => clearInterval(interval);
+  }, [fetchLiveScoreboardData]);
+
+  // Derived datasets from real ESPN data
+  const featuredGame = useMemo(() => {
+    return games[0] || FEATURED_GAME;
+  }, [games]);
+
+  const upNextTeams = useMemo(() => {
+    const derived = deriveUpNextTeams(games);
+    return derived.length > 0 ? derived : YOUR_TEAMS;
+  }, [games]);
+
+  const liveCount = useMemo(() => {
+    return games.filter((g) => g.gameState === 'in').length;
+  }, [games]);
+
+  const sportCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    games.forEach((g) => {
+      counts[g.sport] = (counts[g.sport] || 0) + 1;
+    });
+    return counts;
+  }, [games]);
 
   // Handle navigation
   const handleNavigate = useCallback(
@@ -86,13 +154,15 @@ const TVAppContent: React.FC = () => {
     (gameId?: string) => {
       if (gameId) {
         setSquaresSelectedGameId(gameId);
+      } else if (games[0]) {
+        setSquaresSelectedGameId(games[0].id);
       }
       setActivePlayerGame(null);
       setCurrentScreen('squares');
       setTimeout(() => setFocusedId('game-pick-0'), 50);
-      showToast('Squares Loaded', '10x10 Board ready. Use arrow keys to select your squares.', 'success', 3000);
+      showToast('Squares Loaded', '10x10 Board ready. Top 10 ESPN games available.', 'success', 3000);
     },
-    [setFocusedId, showToast]
+    [games, setFocusedId, showToast]
   );
 
   // Open Full Screen Player
@@ -102,14 +172,13 @@ const TVAppContent: React.FC = () => {
 
   // Open Player from Channels guide
   const handleOpenPlayerWithChannel = useCallback((channel: ChannelItem) => {
-    // Find or simulate corresponding live game
-    const matchingGame = LIVE_GAMES.find((g) => g.channel.includes(channel.name.slice(0, 4))) || FEATURED_GAME;
+    const matchingGame = games.find((g) => g.channel.toLowerCase().includes(channel.name.slice(0, 4).toLowerCase())) || games[0] || FEATURED_GAME;
     setActivePlayerGame({
       ...matchingGame,
       channel: `${channel.name} (CH ${channel.number})`,
       headline: channel.currentShow.title,
     });
-  }, []);
+  }, [games]);
 
   // Back button handler (Escape or Backspace or TV remote back)
   useEffect(() => {
@@ -126,7 +195,7 @@ const TVAppContent: React.FC = () => {
     };
 
     const handleKey5Action = () => {
-      handleGoToSquares(activePlayerGame?.id || FEATURED_GAME.id);
+      handleGoToSquares(activePlayerGame?.id || featuredGame.id);
     };
 
     window.addEventListener('tv-remote-back', handleBackAction);
@@ -135,7 +204,7 @@ const TVAppContent: React.FC = () => {
       window.removeEventListener('tv-remote-back', handleBackAction);
       window.removeEventListener('tv-remote-key5', handleKey5Action);
     };
-  }, [activePlayerGame, currentScreen, selectedSportFilter, handleGoToSquares, setFocusedId, showToast]);
+  }, [activePlayerGame, currentScreen, selectedSportFilter, handleGoToSquares, featuredGame, setFocusedId, showToast]);
 
   const toggleFullScreenBrowser = () => {
     if (!document.fullscreenElement) {
@@ -164,22 +233,24 @@ const TVAppContent: React.FC = () => {
           currentScreen={currentScreen}
           onNavigate={handleNavigate}
           selectedSportFilter={selectedSportFilter}
+          liveCount={liveCount}
+          sportCounts={sportCounts}
         />
 
         {/* Main TV Screens */}
         <main className="flex-1 h-full relative overflow-hidden flex flex-col">
           {currentScreen === 'home' && (
             <HomeScreen
-              featuredGame={FEATURED_GAME}
-              liveGames={LIVE_GAMES}
-              yourTeams={YOUR_TEAMS}
+              featuredGame={featuredGame}
+              liveGames={games}
+              yourTeams={upNextTeams}
               spoilerFree={spoilerFree}
               onToggleSpoilerFree={() => {
                 const next = !spoilerFree;
                 setSpoilerFree(next);
                 showToast(
                   'Spoiler-Free Mode',
-                  next ? 'Scores hidden! Tension ratings active.' : 'Scores revealed.',
+                  next ? 'Real scores hidden! Tension ratings active.' : 'Scores revealed.',
                   'info',
                   2500
                 );
@@ -187,12 +258,14 @@ const TVAppContent: React.FC = () => {
               onOpenPlayer={handleOpenPlayer}
               onGoToSquares={handleGoToSquares}
               sportFilter={selectedSportFilter}
+              updatedTime={lastUpdatedTime}
+              isOffline={isOffline}
             />
           )}
 
           {currentScreen === 'multiview' && (
             <MultiviewScreen
-              games={LIVE_GAMES}
+              games={games}
               spoilerFree={spoilerFree}
               onOpenPlayer={handleOpenPlayer}
               onGoToSquares={handleGoToSquares}
@@ -207,7 +280,10 @@ const TVAppContent: React.FC = () => {
           )}
 
           {currentScreen === 'squares' && (
-            <SquaresScreen initialGameId={squaresSelectedGameId} />
+            <SquaresScreen
+              initialGameId={squaresSelectedGameId || games[0]?.id}
+              games={games}
+            />
           )}
 
           {/* Full-Screen Player Overlay (Opens on Enter on Preview, Esc closes, 5 jumps to Squares) */}

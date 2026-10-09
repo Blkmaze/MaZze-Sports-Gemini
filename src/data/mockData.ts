@@ -18,6 +18,9 @@ export const FEATURED_GAME: GameItem = {
     score: 24,
     record: '15-4'
   },
+  gameState: 'in',
+  shortDetail: 'Q3 8:42',
+  startTime: '2026-10-09T18:30:00Z',
   quarterOrPeriod: '3rd Quarter',
   clock: '8:42',
   isLive: true,
@@ -25,7 +28,8 @@ export const FEATURED_GAME: GameItem = {
   headline: 'SUPER BOWL LIX REMATCH • LIVE FROM NEW ORLEANS',
   channel: 'MaZze RedZone 4K (CH 201)',
   excitementScore: 98,
-  venue: 'Caesars Superdome'
+  venue: 'Caesars Superdome',
+  label: 'SF @ KC'
 };
 
 export const LIVE_GAMES: GameItem[] = [
@@ -48,6 +52,9 @@ export const LIVE_GAMES: GameItem[] = [
       score: 112,
       record: '52-30'
     },
+    gameState: 'in',
+    shortDetail: 'Q4 2:15',
+    startTime: '2026-10-09T19:00:00Z',
     quarterOrPeriod: '4th Quarter',
     clock: '2:15',
     isLive: true,
@@ -55,7 +62,8 @@ export const LIVE_GAMES: GameItem[] = [
     headline: 'CLUTCH TIME: 4-POINT MARGIN WITH 2 MINS LEFT',
     channel: 'ESPN HD (CH 206)',
     excitementScore: 95,
-    venue: 'Crypto.com Arena'
+    venue: 'Crypto.com Arena',
+    label: 'BOS @ LAL'
   },
   {
     id: 'game-rma-bar',
@@ -75,6 +83,9 @@ export const LIVE_GAMES: GameItem[] = [
       score: 2,
       record: '2nd in Table'
     },
+    gameState: 'in',
+    shortDetail: '82’ 2nd Half',
+    startTime: '2026-10-09T19:15:00Z',
     quarterOrPeriod: '2nd Half',
     clock: '82:14',
     isLive: true,
@@ -82,7 +93,8 @@ export const LIVE_GAMES: GameItem[] = [
     headline: 'VINÍCIUS JR 76’ STRIKE SHATTERS DEADLOCK',
     channel: 'Sky Sports Premier (CH 228)',
     excitementScore: 92,
-    venue: 'Santiago Bernabéu'
+    venue: 'Santiago Bernabéu',
+    label: 'BAR @ RMA'
   },
   {
     id: 'game-edm-fla',
@@ -102,6 +114,9 @@ export const LIVE_GAMES: GameItem[] = [
       score: 3,
       record: '50-24'
     },
+    gameState: 'in',
+    shortDetail: 'P3 4:50',
+    startTime: '2026-10-09T20:00:00Z',
     quarterOrPeriod: '3rd Period',
     clock: '4:50',
     isLive: true,
@@ -109,7 +124,8 @@ export const LIVE_GAMES: GameItem[] = [
     headline: 'POWER PLAY FOR PANTHERS TIED IN 3RD',
     channel: 'TNT Sports 1 (CH 210)',
     excitementScore: 89,
-    venue: 'Amerant Bank Arena'
+    venue: 'Amerant Bank Arena',
+    label: 'EDM @ FLA'
   },
   {
     id: 'game-ufc-315',
@@ -129,6 +145,9 @@ export const LIVE_GAMES: GameItem[] = [
       score: 29,
       record: '26-1-0'
     },
+    gameState: 'in',
+    shortDetail: 'R3 1:45',
+    startTime: '2026-10-09T22:00:00Z',
     quarterOrPeriod: 'Round 3 of 5',
     clock: '1:45',
     isLive: true,
@@ -136,7 +155,8 @@ export const LIVE_GAMES: GameItem[] = [
     headline: 'LIGHTWEIGHT WORLD TITLE BOUT • TAKEDOWN BATTLE',
     channel: 'Fight Network (CH 235)',
     excitementScore: 97,
-    venue: 'T-Mobile Arena'
+    venue: 'T-Mobile Arena',
+    label: 'TSA @ MAK'
   }
 ];
 

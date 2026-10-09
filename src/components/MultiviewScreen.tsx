@@ -162,13 +162,13 @@ export const MultiviewScreen: React.FC<MultiviewScreenProps> = ({
         }`}
       >
         {displayedGames.map((game, index) => {
-          const hasSound = game.id === activeSoundGameId;
+          const hasSound = game.id === activeSoundGameId || (!displayedGames.some(g => g.id === activeSoundGameId) && index === 0);
           const isLeft = index % 2 === 0;
           const isTop = index < 2;
 
           return (
             <FocusableItem
-              key={game.id}
+              key={`multi-tile-${index}`}
               id={`multi-tile-${index}`}
               dataNavUp={isTop ? 'multi-btn-4games' : `multi-tile-${index - 2}`}
               dataNavDown={isTop && layoutMode === '4' ? `multi-tile-${index + 2}` : undefined}
@@ -193,8 +193,8 @@ export const MultiviewScreen: React.FC<MultiviewScreenProps> = ({
                       <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-xs font-mono font-bold text-zinc-300 border border-zinc-700">
                         {game.channel}
                       </span>
-                      <span className="px-2 py-0.5 rounded bg-zinc-800/80 text-[11px] font-mono font-semibold text-zinc-400">
-                        {game.clock}
+                      <span className="px-2 py-0.5 rounded bg-zinc-800/80 text-[11px] font-mono font-semibold text-zinc-300">
+                        {game.shortDetail}
                       </span>
                     </div>
 
@@ -224,7 +224,7 @@ export const MultiviewScreen: React.FC<MultiviewScreenProps> = ({
                       {game.league}
                     </div>
                     <h3 className="text-2xl font-extrabold text-white">
-                      {game.awayTeam.name} vs {game.homeTeam.name}
+                      {game.awayTeam.name} @ {game.homeTeam.name}
                     </h3>
                   </div>
 

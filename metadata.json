@@ -2,5 +2,7 @@
   "name": "MaZze Sports TV",
   "description": "10-foot TV experience sports hub with live multiview, spoiler-free scores, interactive 10x10 squares board, and TV remote spatial navigation.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

@@ -1,5 +1,7 @@
 export type NavScreen = 'home' | 'multiview' | 'channels' | 'squares' | 'mysports';
-export type SportCategory = 'Football' | 'Basketball' | 'Soccer' | 'Hockey' | 'Fights';
+export type SportCategory = 'Football' | 'Basketball' | 'Soccer' | 'Hockey' | 'Baseball' | 'Fights';
+
+export type GameState = 'in' | 'pre' | 'post';
 
 export interface GameItem {
   id: string;
@@ -11,6 +13,7 @@ export interface GameItem {
     logoColor: string;
     score: number;
     record?: string;
+    logo?: string;
   };
   homeTeam: {
     name: string;
@@ -18,15 +21,20 @@ export interface GameItem {
     logoColor: string;
     score: number;
     record?: string;
+    logo?: string;
   };
+  gameState: GameState; // 'in' = live, 'pre' = upcoming, 'post' = final
+  shortDetail: string; // from status.type.shortDetail
+  startTime: string; // ISO date
   quarterOrPeriod: string;
   clock: string;
   isLive: boolean;
   possession?: 'away' | 'home';
   headline: string;
   channel: string;
-  excitementScore: number; // For spoiler-free suspense gauge (e.g. 96/100)
+  excitementScore: number;
   venue: string;
+  label: string; // AWAY @ HOME
 }
 
 export interface UserTeam {
